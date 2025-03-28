@@ -15,7 +15,7 @@
     
 
   
-  
+
   
 
   
@@ -59,19 +59,33 @@
 
   <main>
     
-  <div class="post">
+<div class="post">
     <h1 class="post-title">Aggregating cross-chain DEX data</h1>
     <div class="post-info">
-      <span>&nbsp;</span><time datetime="2024-08-16">August 16, 2024</time>
+        <span>&nbsp;</span
+        ><time datetime="2024-08-16"
+            >August 16, 2024</time
+        >
+
+        
+        <span
+            >&nbsp;(Updated: August 20, 2024)</span
+        >
+        
     </div>
     <div class="post-line"></div>
-    <p>tags: 
+    <div class="post-tags">
+         
+        <a class="tag" href="/tags/cs/"
+            >#cs</a
+        >
         
-          <a href="/tags/cs/">cs</a>, 
-        
-          <a href="/tags/cs-rust/">cs&#x2F;rust</a>
-        
-      </p>
+        <a class="tag" href="/tags/cs-rust/"
+            >#cs&#x2F;rust</a
+        >
+         
+    </div>
+
     <p>Ethereum has adopted the <a href="https://ethereum-magicians.org/t/a-rollup-centric-ethereum-roadmap/4698">rollup-centric</a> roadmap, positioning itself as the global settlement layer for <a href="https://l2beat.com/scaling/summary">potential layer-2s</a> more so than being direct target for "traditional" layer-1 applications. The move allows layer-2s to acquire the economic security of Ethereum as a base layer, the layer-2s on the other hand provide Ethereum with fees for all the block (and blob!) space required to commit each proof. Having such a clear separation of responsibilities provides the means needed to scale the current biggest bottleneck: transaction throughput. One of the downsides of the approach is the increased scatteredness of liquidity and the sheer amount of liquidity pools getting deployed.</p>
 <p>One of the problems we're trying to solve at <a href="https://polia.io">Polia</a> is how to most efficiently provide direct exposure to real-time data from all relevant (liquidity unpoor) decentralised exchanges, without accruing too much unnecessary noise and pressure for the clients that'll be consuming the data. Doing so would allow anyone the ability to acquire and keep up-to-date a "world-view" of the current state of all decentralised liquidity pools across multiple networks.</p>
 <p>The system used to provide the service consists of two core components, both developed in <a href="https://www.rust-lang.org/">Rust</a>:</p>
@@ -81,20 +95,20 @@
 </ul>
 <pre class="mermaid">
   graph LR
-    A[Networks nodes - Ethereum,Zksync,Arbitrum etc.] --&gt;|Raw Data| B(Node ETL instances)
-    B --&gt;|Filtered Data| C[FIFO Stream]
-    C --&gt;|Aggregated Data| D(Websocket Gateway)
-    D --&gt;|Synthesised Data| E[Clients]
-    
+A[Networks nodes - Ethereum,Zksync,Arbitrum etc.] --&gt;|Raw Data| B(Node ETL instances)
+B --&gt;|Filtered Data| C[FIFO Stream]
+C --&gt;|Aggregated Data| D(Websocket Gateway)
+D --&gt;|Synthesised Data| E[Clients]
+
     subgraph &quot;ETL Pipeline&quot;
     B
     C
     end
-    
+
     subgraph &quot;Data Exposure&quot;
     D
     end
-    
+
     classDef component fill:#f9f,stroke:#333,stroke-width:2px;
     class B,D component;
 </pre>
@@ -140,7 +154,7 @@ As DEFI is mostly still dominated by uniswap-v2 and uniswap-v3, and the hundreds
 </span><span>        </span><span style="color:#bf616a;">criteria</span><span>: Option&lt;&amp;Criteria&gt;,
 </span><span>    ) -&gt; crate::Result&lt;()&gt; {
 </span><span>        </span><span style="color:#b48ead;">let mut</span><span> stream = </span><span style="color:#bf616a;">self</span><span>.node.</span><span style="color:#96b5b4;">sub_logs</span><span>(criteria).await?;
-</span><span>        
+</span><span>
 </span><span>        </span><span style="color:#b48ead;">while let </span><span>Some(log) = stream.</span><span style="color:#96b5b4;">next</span><span>().await {
 </span><span>            </span><span style="color:#b48ead;">if</span><span> stop_signal.</span><span style="color:#96b5b4;">has_changed</span><span>()? {
 </span><span>                </span><span style="color:#b48ead;">break</span><span>;
@@ -156,7 +170,7 @@ As DEFI is mostly still dominated by uniswap-v2 and uniswap-v3, and the hundreds
 </span><span>                    </span><span style="color:#b48ead;">continue</span><span>;
 </span><span>                }
 </span><span>            };
-</span><span>            
+</span><span>
 </span><span>            #[</span><span style="color:#bf616a;">cfg</span><span>(feature = &quot;</span><span style="color:#a3be8c;">postgres</span><span>&quot;)]
 </span><span>            {
 </span><span>                event
@@ -187,31 +201,31 @@ As DEFI is mostly still dominated by uniswap-v2 and uniswap-v3, and the hundreds
 <p>The whole process can be illustrated with the diagram below.
 <pre class="mermaid">
   graph TD
-    A[Node ETL] --&gt; B[Manager]
-    B --&gt; C1[Collector 1]
-    B --&gt; C2[Collector 2]
-    B --&gt; C3[Collector N]
-    
+A[Node ETL] --&gt; B[Manager]
+B --&gt; C1[Collector 1]
+B --&gt; C2[Collector 2]
+B --&gt; C3[Collector N]
+
     C1 --&gt; D1[Node Instance]
     C1 --&gt; D2[Database Pool]
     C1 --&gt; D3[Redis Stream]
-    
+
     I[Raw Events] &lt;--&gt;|Listen| D1
     D1 --&gt;|Aggregate &amp; Transform| J[Processed Events]
     J --&gt;|Insert| D2[Database Pool]
     J --&gt;|Send| D3[Redis Stream]
-    
+
     subgraph &quot;Collector&quot;
     D1
     D2
     D3
     J
     end
-    
+
     subgraph &quot;Events&quot;
     I
     end
-    
+
     classDef manager fill:#f9f,stroke:#333,stroke-width:2px;
     classDef collector fill:#bbf,stroke:#333,stroke-width:2px;
     classDef process fill:#bfb,stroke:#333,stroke-width:2px;
@@ -226,13 +240,13 @@ As DEFI is mostly still dominated by uniswap-v2 and uniswap-v3, and the hundreds
 <p>The lifecycle of a client establishing a connection is roughly summarised by the below diagram. Please note that the diagram represents happy-path scenarios only.
 <pre class="mermaid">
   sequenceDiagram
-    actor C as Client[Entity]
-    participant SES as ClientSession[Actor]
-    participant DB as Database[Actor]
-    participant SRV as Server[Actor]
-    participant DEFI as DEFI[Actor]
-    participant RED as Redis
-    
+actor C as Client[Entity]
+participant SES as ClientSession[Actor]
+participant DB as Database[Actor]
+participant SRV as Server[Actor]
+participant DEFI as DEFI[Actor]
+participant RED as Redis
+
     C -&gt;&gt; SES: Begin Handshake
     C -&gt;&gt; SES: Send an API Key
     SES -&gt;&gt; DB: Verify the API Key
@@ -241,18 +255,18 @@ As DEFI is mostly still dominated by uniswap-v2 and uniswap-v3, and the hundreds
     SRV -&gt;&gt; C: Establish connection
     C -&gt;&gt; SES: Subscribe to specific topics
     SES -&gt;&gt; SRV: Verify the correctness of the message
-    
+
     loop Continuous Communication
         DEFI -&gt;&gt; RED: Poll for new events
         RED --&gt;&gt; DEFI: Return new events
         DEFI --&gt;&gt; DB: Optionally log the events before propagating
         DEFI --&gt;&gt; SRV: Send synthesised events for further client distribution
     end
-    
+
     SRV -&gt;&gt; SES: Send a msg to all client sessions each time a relevant event happens
     SRV -&gt;&gt; SRV: Modify the user&#x27;s used credits
     SES -&gt;&gt; C: ClientSession actor sends the messages to all end client entities
-    
+
     rect rgb(240, 240, 240)
         Note over C,SRV: Session End
         C -&gt;&gt; SES: Close connection
@@ -325,14 +339,13 @@ As DEFI is mostly still dominated by uniswap-v2 and uniswap-v3, and the hundreds
 <li>The setup allows for the utilisation of real-time events by processes that offer additional functionality and flexibility.</li>
 </ol>
 
-  </div>
+</div>
 
-  
 
-  <div class="pagination">
-    
-    
-  </div>
+
+<div class="pagination">
+     
+</div>
 
   </main>
 
@@ -340,22 +353,24 @@ As DEFI is mostly still dominated by uniswap-v2 and uniswap-v3, and the hundreds
   <footer>
     <div class="footer-content">
       <div class="footer-left">
-        Subscribe via <a href="/rss.xml">RSS</a>
+        Subscribe via <a href="/rss.xml">RSS</a><br>
+        Subscribe via <a href="https://substack.com/@lbkolev">Substack</a><br>
+        <small>All posts are mirrored to Substack</small>
       </div>
-      <div class="footer-center">&copy; <time datetime="2025-01-20T21:08:01.418423+02:00">2023-∞</time></div>
+      <div class="footer-center">&copy; <time datetime="2025-03-28T03:15:25.782976+02:00">2023-∞</time></div>
       <div class="footer-right">
         <a href="https://github.com/lbkolev" target="_blank" rel="noopener noreferrer">
           <i class="fab fa-github"></i> lbkolev
         </a>
         <a href="https://x.com/lbkolev" target="_blank" rel="noopener noreferrer">
           <i class="fab fa-x-twitter"></i> lbkolev
-        </a>  
+        </a>
         <a href="mailto:lachezarkolevgg@gmail.com">lachezarkolevgg@gmail.com</a>
       </div>
     </div>
   </footer>
   
-  
+
 </body>
 
 </html>

@@ -16,7 +16,7 @@
     {% endblock %}
 
   {% endif %}
-  
+
   {% if config.extra.google_analytics %}
     <script async src='https://www.google-analytics.com/analytics.js'></script>
     <script>
@@ -67,7 +67,9 @@
   <footer>
     <div class="footer-content">
       <div class="footer-left">
-        Subscribe via <a href="/rss.xml">RSS</a>
+        Subscribe via <a href="/rss.xml">RSS</a><br>
+        Subscribe via <a href="https://substack.com/@lbkolev">Substack</a><br>
+        <small>All posts are mirrored to Substack</small>
       </div>
       <div class="footer-center">
         {%- if config.extra.footer -%}
@@ -80,13 +82,13 @@
         </a>
         <a href="https://x.com/lbkolev" target="_blank" rel="noopener noreferrer">
           <i class="fab fa-x-twitter"></i> lbkolev
-        </a>  
+        </a>
         <a href="mailto:lachezarkolevgg@gmail.com">lachezarkolevgg@gmail.com</a>
       </div>
     </div>
   </footer>
   {% endblock footer %}
-  
+
 </body>
 
 </html>

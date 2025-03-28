@@ -22,18 +22,7 @@
 		<h2 class="tags-item-label"><a href="{{ term.permalink | safe }}">{{ term.name }}</a></h2>
 
 		{% for page in term.pages -%}
-		<a class="tags-post" href="{{ page.permalink | safe }}">
-			<div>
-				<span class="tags-post-title">{{ page.title }}</span>
-				<div class="tags-post-line"></div>
-			</div>
-			<span class="tags-post-meta">
-				<time datetime="{{ page.date }}">
-					{{ page.date | date(format=config.extra.timeformat |
-					default(value="%B %e, %Y")) }}
-				</time>
-			</span>
-		</a>
+    		{{ macros::page(page=page) }}
 		{% endfor -%}
 	</div>
 	{% endfor -%}

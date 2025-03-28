@@ -1,15 +1,9 @@
-.container {
-  margin: 0 auto;
-  max-width: 800px;
-  width: 80%;
-}
-
 main,
 footer,
 .nav-container {
   display: block;
   margin: 0 auto;
-  max-width: 800px;
+  max-width: 1200px;
   width: 80%;
 }
 
@@ -97,7 +91,7 @@ footer a:hover {
   justify-content: space-between;
   align-items: center;
   width: 100%;
-  max-width: 1200px;
+  max-width: 100%;
   margin: 0 auto;
 }
 
@@ -107,6 +101,8 @@ footer a:hover {
 
 .footer-left {
   text-align: left;
+  flex-direction: column;
+  align-items: flex-start;
 }
 
 .footer-center {

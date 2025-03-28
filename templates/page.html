@@ -1,30 +1,42 @@
-{% extends "base.html"%}
-
-{% block content %}
-  <div class="post">
+{% extends "base.html"%} {% block content %}
+<div class="post">
     <h1 class="post-title">{{ page.title }}</h1>
     <div class="post-info">
-      <span>&nbsp;</span><time datetime="{{ page.date }}">{{ page.date | date(format=config.extra.timeformat | default(value="%B %e, %Y"))}}</time>
+        <span>&nbsp;</span
+        ><time datetime="{{ page.date }}"
+            >{{ page.date | date(format=config.extra.timeformat |
+            default(value="%B %e, %Y"))}}</time
+        >
+
+        {% if page.updated %}
+        <span
+            >&nbsp;(Updated: {{ page.updated |
+            date(format=config.extra.timeformat | default(value="%B %e, %Y"))
+            }})</span
+        >
+        {% endif %}
     </div>
     <div class="post-line"></div>
-    {% if page.taxonomies.tags -%}
-      <p>tags: 
-        {% for tag in page.taxonomies.tags %}
-          <a href="/tags/{{ tag | replace(from='/', to='-') }}/">{{ tag }}</a>{% if not loop.last %}, {% endif %}
-        {% endfor %}
-      </p>
-    {%- endif %}
+    <div class="post-tags">
+        {% if page.taxonomies.tags %} {% for tag in page.taxonomies.tags %}
+        <a class="tag" href="/tags/{{ tag | replace(from='/', to='-') }}/"
+            >#{{ tag }}</a
+        >
+        {% endfor %} {% endif %}
+    </div>
+
     {{ page.content | safe }}
-  </div>
+</div>
 
-  {% include "partials/disqus.html" %}
+{% include "partials/disqus.html" %}
 
-  <div class="pagination">
+<div class="pagination">
     {% if page.later -%}
-      <a href="{{ page.later.permalink | safe }}" class="left arrow">&#8592;</a>
+    <a href="{{ page.later.permalink | safe }}" class="left arrow">&#8592;</a>
+    {%- endif %} {% if page.earlier -%}
+    <a href="{{ page.earlier.permalink | safe }}" class="right arrow"
+        >&#8594;</a
+    >
     {%- endif %}
-    {% if page.earlier -%}
-      <a href="{{ page.earlier.permalink | safe }}" class="right arrow">&#8594;</a>
-    {%- endif %}
-  </div>
+</div>
 {% endblock content %}

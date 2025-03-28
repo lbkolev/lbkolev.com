@@ -7,7 +7,7 @@
       <generator>Zola</generator>
       <language>en</language>
       <atom:link href="https://lbkolev.com/rss.xml" rel="self" type="application/rss+xml"/>
-      <lastBuildDate>Fri, 16 Aug 2024 00:00:00 +0000</lastBuildDate>
+      <lastBuildDate>Tue, 20 Aug 2024 00:00:00 +0000</lastBuildDate>
       <item>
           <title>Aggregating cross-chain DEX data</title>
           <pubDate>Fri, 16 Aug 2024 00:00:00 +0000</pubDate>
@@ -23,20 +23,20 @@
 &lt;&#x2F;ul&gt;
 &lt;pre class=&quot;mermaid&quot;&gt;
   graph LR
-    A[Networks nodes - Ethereum,Zksync,Arbitrum etc.] --&amp;gt;|Raw Data| B(Node ETL instances)
-    B --&amp;gt;|Filtered Data| C[FIFO Stream]
-    C --&amp;gt;|Aggregated Data| D(Websocket Gateway)
-    D --&amp;gt;|Synthesised Data| E[Clients]
-    
+A[Networks nodes - Ethereum,Zksync,Arbitrum etc.] --&amp;gt;|Raw Data| B(Node ETL instances)
+B --&amp;gt;|Filtered Data| C[FIFO Stream]
+C --&amp;gt;|Aggregated Data| D(Websocket Gateway)
+D --&amp;gt;|Synthesised Data| E[Clients]
+
     subgraph &amp;quot;ETL Pipeline&amp;quot;
     B
     C
     end
-    
+
     subgraph &amp;quot;Data Exposure&amp;quot;
     D
     end
-    
+
     classDef component fill:#f9f,stroke:#333,stroke-width:2px;
     class B,D component;
 &lt;&#x2F;pre&gt;
@@ -82,7 +82,7 @@ As DEFI is mostly still dominated by uniswap-v2 and uniswap-v3, and the hundreds
 &lt;&#x2F;span&gt;&lt;span&gt;        &lt;&#x2F;span&gt;&lt;span style=&quot;color:#bf616a;&quot;&gt;criteria&lt;&#x2F;span&gt;&lt;span&gt;: Option&amp;lt;&amp;amp;Criteria&amp;gt;,
 &lt;&#x2F;span&gt;&lt;span&gt;    ) -&amp;gt; crate::Result&amp;lt;()&amp;gt; {
 &lt;&#x2F;span&gt;&lt;span&gt;        &lt;&#x2F;span&gt;&lt;span style=&quot;color:#b48ead;&quot;&gt;let mut&lt;&#x2F;span&gt;&lt;span&gt; stream = &lt;&#x2F;span&gt;&lt;span style=&quot;color:#bf616a;&quot;&gt;self&lt;&#x2F;span&gt;&lt;span&gt;.node.&lt;&#x2F;span&gt;&lt;span style=&quot;color:#96b5b4;&quot;&gt;sub_logs&lt;&#x2F;span&gt;&lt;span&gt;(criteria).await?;
-&lt;&#x2F;span&gt;&lt;span&gt;        
+&lt;&#x2F;span&gt;&lt;span&gt;
 &lt;&#x2F;span&gt;&lt;span&gt;        &lt;&#x2F;span&gt;&lt;span style=&quot;color:#b48ead;&quot;&gt;while let &lt;&#x2F;span&gt;&lt;span&gt;Some(log) = stream.&lt;&#x2F;span&gt;&lt;span style=&quot;color:#96b5b4;&quot;&gt;next&lt;&#x2F;span&gt;&lt;span&gt;().await {
 &lt;&#x2F;span&gt;&lt;span&gt;            &lt;&#x2F;span&gt;&lt;span style=&quot;color:#b48ead;&quot;&gt;if&lt;&#x2F;span&gt;&lt;span&gt; stop_signal.&lt;&#x2F;span&gt;&lt;span style=&quot;color:#96b5b4;&quot;&gt;has_changed&lt;&#x2F;span&gt;&lt;span&gt;()? {
 &lt;&#x2F;span&gt;&lt;span&gt;                &lt;&#x2F;span&gt;&lt;span style=&quot;color:#b48ead;&quot;&gt;break&lt;&#x2F;span&gt;&lt;span&gt;;
@@ -98,7 +98,7 @@ As DEFI is mostly still dominated by uniswap-v2 and uniswap-v3, and the hundreds
 &lt;&#x2F;span&gt;&lt;span&gt;                    &lt;&#x2F;span&gt;&lt;span style=&quot;color:#b48ead;&quot;&gt;continue&lt;&#x2F;span&gt;&lt;span&gt;;
 &lt;&#x2F;span&gt;&lt;span&gt;                }
 &lt;&#x2F;span&gt;&lt;span&gt;            };
-&lt;&#x2F;span&gt;&lt;span&gt;            
+&lt;&#x2F;span&gt;&lt;span&gt;
 &lt;&#x2F;span&gt;&lt;span&gt;            #[&lt;&#x2F;span&gt;&lt;span style=&quot;color:#bf616a;&quot;&gt;cfg&lt;&#x2F;span&gt;&lt;span&gt;(feature = &amp;quot;&lt;&#x2F;span&gt;&lt;span style=&quot;color:#a3be8c;&quot;&gt;postgres&lt;&#x2F;span&gt;&lt;span&gt;&amp;quot;)]
 &lt;&#x2F;span&gt;&lt;span&gt;            {
 &lt;&#x2F;span&gt;&lt;span&gt;                event
@@ -129,31 +129,31 @@ As DEFI is mostly still dominated by uniswap-v2 and uniswap-v3, and the hundreds
 &lt;p&gt;The whole process can be illustrated with the diagram below.
 &lt;pre class=&quot;mermaid&quot;&gt;
   graph TD
-    A[Node ETL] --&amp;gt; B[Manager]
-    B --&amp;gt; C1[Collector 1]
-    B --&amp;gt; C2[Collector 2]
-    B --&amp;gt; C3[Collector N]
-    
+A[Node ETL] --&amp;gt; B[Manager]
+B --&amp;gt; C1[Collector 1]
+B --&amp;gt; C2[Collector 2]
+B --&amp;gt; C3[Collector N]
+
     C1 --&amp;gt; D1[Node Instance]
     C1 --&amp;gt; D2[Database Pool]
     C1 --&amp;gt; D3[Redis Stream]
-    
+
     I[Raw Events] &amp;lt;--&amp;gt;|Listen| D1
     D1 --&amp;gt;|Aggregate &amp;amp; Transform| J[Processed Events]
     J --&amp;gt;|Insert| D2[Database Pool]
     J --&amp;gt;|Send| D3[Redis Stream]
-    
+
     subgraph &amp;quot;Collector&amp;quot;
     D1
     D2
     D3
     J
     end
-    
+
     subgraph &amp;quot;Events&amp;quot;
     I
     end
-    
+
     classDef manager fill:#f9f,stroke:#333,stroke-width:2px;
     classDef collector fill:#bbf,stroke:#333,stroke-width:2px;
     classDef process fill:#bfb,stroke:#333,stroke-width:2px;
@@ -168,13 +168,13 @@ As DEFI is mostly still dominated by uniswap-v2 and uniswap-v3, and the hundreds
 &lt;p&gt;The lifecycle of a client establishing a connection is roughly summarised by the below diagram. Please note that the diagram represents happy-path scenarios only.
 &lt;pre class=&quot;mermaid&quot;&gt;
   sequenceDiagram
-    actor C as Client[Entity]
-    participant SES as ClientSession[Actor]
-    participant DB as Database[Actor]
-    participant SRV as Server[Actor]
-    participant DEFI as DEFI[Actor]
-    participant RED as Redis
-    
+actor C as Client[Entity]
+participant SES as ClientSession[Actor]
+participant DB as Database[Actor]
+participant SRV as Server[Actor]
+participant DEFI as DEFI[Actor]
+participant RED as Redis
+
     C -&amp;gt;&amp;gt; SES: Begin Handshake
     C -&amp;gt;&amp;gt; SES: Send an API Key
     SES -&amp;gt;&amp;gt; DB: Verify the API Key
@@ -183,18 +183,18 @@ As DEFI is mostly still dominated by uniswap-v2 and uniswap-v3, and the hundreds
     SRV -&amp;gt;&amp;gt; C: Establish connection
     C -&amp;gt;&amp;gt; SES: Subscribe to specific topics
     SES -&amp;gt;&amp;gt; SRV: Verify the correctness of the message
-    
+
     loop Continuous Communication
         DEFI -&amp;gt;&amp;gt; RED: Poll for new events
         RED --&amp;gt;&amp;gt; DEFI: Return new events
         DEFI --&amp;gt;&amp;gt; DB: Optionally log the events before propagating
         DEFI --&amp;gt;&amp;gt; SRV: Send synthesised events for further client distribution
     end
-    
+
     SRV -&amp;gt;&amp;gt; SES: Send a msg to all client sessions each time a relevant event happens
     SRV -&amp;gt;&amp;gt; SRV: Modify the user&amp;#x27;s used credits
     SES -&amp;gt;&amp;gt; C: ClientSession actor sends the messages to all end client entities
-    
+
     rect rgb(240, 240, 240)
         Note over C,SRV: Session End
         C -&amp;gt;&amp;gt; SES: Close connection
