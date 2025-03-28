@@ -7,7 +7,7 @@ template = "about/section.html"
 
 - [X](https://x.com/lbkolev)
 - [Farcaster](https://warpcast.com/lbkolev)
-- [Substack](https://substack.com/@lbkolev)
+- [Substack](https://lbkolev.substack.com)
 - [Github](https://github.com/lbkolev)
 - [lachezarkolevgg@gmail.com](mailto:lachezarkolevgg@gmail.com)
 - [lbkolev.eth](https://etherscan.io/address/0xbD87e4672C1Ff07c29768bE254C096e57697a194)
