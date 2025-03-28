@@ -19,19 +19,21 @@
 <time datetime="{{ now() }}">{{ year }}</time>
 {%- endmacro -%} {% macro page(page) -%}
 <div class="catalogue-item">
-  <a href="{{ page.permalink | safe }}">
-    <div class="catalogue-title-date-container">
-      <h1 class="catalogue-title">{{ page.title }}</h1>
-      <time datetime="{{ page.date }}" class="catalogue-time">{{ page.date | date(format=config.extra.timeformat | default(value="%B %e, %Y")) }}</time>
+  <div class="catalogue-title-date-container">
+    <div class="title-tags">
+      <h1 class="catalogue-title">
+        <a href="{{ page.permalink | safe }}">{{ page.title }}</a>
+      </h1>
+      <div class="post-tags">
+        {%- if page.taxonomies.tags -%}
+          {%- for tag in page.taxonomies.tags -%}
+            <a href="/tags/{{ tag | replace(from='/', to='-') }}/">{{ tag }}</a>
+          {%- endfor -%}
+        {%- endif -%}
+      </div>
     </div>
-  </a>
-  {%- if page.taxonomies.tags -%}
-  <p class="catalogue-tags">
-    tags: {%- for tag in page.taxonomies.tags %}
-    <a href="/tags/{{ tag | replace(from='/', to='-') }}/">{{ tag }}</a>{% if not loop.last %}, {% endif %}
-    {%- endfor %}
-  </p>
-  {%- endif -%}
+    <time datetime="{{ page.date }}" class="catalogue-time">{{ page.date | date(format=config.extra.timeformat | default(value="%B %e, %Y")) }}</time>
+  </div>
   <div class="catalogue-line"></div>
   <p>{%- if page.summary -%} {{ page.summary | safe }} {%- endif -%}</p>
 </div>

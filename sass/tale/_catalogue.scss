@@ -25,17 +25,37 @@
   }
 
   &-title {
+    align-items: left;
     color: $default-shade;
     font-family: $sans-serif;
     font-size: 1.2rem;
     font-weight: 600;
     margin: 0;
+
+    a {
+        color: $default-shade !important;
+        text-decoration: none;
+    }
   }
 
   &-title-date-container {
     display: flex;
-    justify-content: space-between;
-    align-items: baseline;
+
+    .title-tags {
+      display: flex;
+      flex: 1;
+
+      .post-tags {
+        margin: 0;
+        a {
+            font-size: 0.7rem;
+        }
+      }
+    }
+
+    .catalogue-time {
+      flex-shrink: 0;
+    }
   }
 
   &-line {
@@ -43,12 +63,6 @@
     display: block;
     width: 2rem;
     margin-top: 1rem;
-  }
-
-  &-tags {
-    margin-top: -0rem;
-    font-size: 0.9rem;
-    display: block;
   }
 
 }

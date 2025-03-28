@@ -16,11 +16,10 @@
         >
         {% endif %}
     </div>
-    <div class="post-line"></div>
     <div class="post-tags">
         {% if page.taxonomies.tags %} {% for tag in page.taxonomies.tags %}
         <a class="tag" href="/tags/{{ tag | replace(from='/', to='-') }}/"
-            >#{{ tag }}</a
+            >{{ tag }}</a
         >
         {% endfor %} {% endif %}
     </div>
