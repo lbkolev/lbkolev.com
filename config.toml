@@ -1,5 +1,5 @@
 base_url = "https://lbkolev.com"
-title = "lbkolev.eth"
+title = "Lachezar Kolev"
 description = "lachezar kolev's blog"
 compile_sass = true
 generate_feeds = true

@@ -7,6 +7,11 @@ footer,
   width: 80%;
 }
 
+body {
+  font-family: Arial, sans-serif;
+  font-size: 16px;
+}
+
 .nav {
   box-shadow: 0 2px 2px -2px $shadow-color;
   overflow: auto;
@@ -23,6 +28,8 @@ footer,
     display: inline-block;
     margin: 0;
     padding-right: .2rem;
+    font-size: 24px;
+    font-family: 'Times New Roman', serif;
 
     &:hover,
     &:focus {
@@ -80,6 +87,7 @@ footer {
   border-top: .5px solid $grey-2;
   margin-top: 10px;
   padding-top: 10px;
+  font-size: 14px;
 }
 
 footer a:hover {
@@ -144,5 +152,4 @@ footer a:hover {
   .footer-right {
     align-items: center;
   }
-
 }
