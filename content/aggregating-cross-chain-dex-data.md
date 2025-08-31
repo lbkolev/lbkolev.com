@@ -5,7 +5,7 @@ date = 2024-08-16
 updated = 2024-08-20
 
 [taxonomies]
-tags = ["cs", "cs/rust"]
+tags = ["cs/rust"]
 +++
 
 Ethereum has adopted the [rollup-centric](https://ethereum-magicians.org/t/a-rollup-centric-ethereum-roadmap/4698) roadmap, positioning itself as the global settlement layer for [potential layer-2s](https://l2beat.com/scaling/summary) more so than being direct target for "traditional" layer-1 applications. The move allows layer-2s to acquire the economic security of Ethereum as a base layer, the layer-2s on the other hand provide Ethereum with fees for all the block (and blob!) space required to commit each proof. Having such a clear separation of responsibilities provides the means needed to scale the current biggest bottleneck: transaction throughput. One of the downsides of the approach is the increased scatteredness of liquidity and the sheer amount of liquidity pools getting deployed.

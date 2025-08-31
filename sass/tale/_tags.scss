@@ -2,7 +2,6 @@
   &-header {
     &-title {
       color: $default-shade;
-      font-family: $sans-serif;
       font-size: 1.5rem;
       margin: 1rem 0;
       text-align: center;
@@ -17,7 +16,6 @@
 
   &-clouds {
     text-align: center;
-    font-family: $sans-serif;
     font-size: 0.9rem;
 
     a {
@@ -47,7 +45,6 @@
       font-size: 1.0rem;
 
       a {
-        font-family: $sans-serif;
         color: $default-color;
       }
     }

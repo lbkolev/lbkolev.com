@@ -11,8 +11,6 @@ body {
 }
 
 html {
-  font-family: $serif-primary;
-  font-size: 14px;
   overflow-y: scroll;
 
   @media (min-width: 600px) {
@@ -31,7 +29,6 @@ h4,
 h5,
 h6 {
   color: $default-shade;
-  font-family: $sans-serif;
   line-height: normal;
 }
 
