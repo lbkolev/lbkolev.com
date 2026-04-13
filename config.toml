@@ -9,9 +9,8 @@ taxonomies = [
     { name = "tags", feed = true }, # each tag will have its own feed
 ]
 
-[markdown]
-highlight_code = true
-highlight_theme = "base16-ocean-light"
+[markdown.highlighting]
+theme = "github-light"
 
 [extra]
 x = "https://x.com/lbkolev"
