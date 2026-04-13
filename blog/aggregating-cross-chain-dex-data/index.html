@@ -1,0 +1,367 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+  <link rel="stylesheet" href="https://lbkolev.com/main.css">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Libre+Baskerville:400,400i,700">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.6.0/css/all.min.css" crossorigin="anonymous" referrerpolicy="no-referrer" />
+
+  
+    <link type="application/atom+xml" rel="alternate" href="https://lbkolev.com/atom.xml" title="Lachezar Kolev" />
+    
+      <link rel="alternate" type="application/rss+xml" title="RSS" href="https://lbkolev.com/rss.xml">
+    
+
+  
+
+  
+
+  
+    <script type="module">
+      import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.esm.min.mjs';
+      mermaid.initialize({ startOnLoad: true });
+    </script>
+  
+
+  
+  
+	<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.11.1/dist/katex.min.css"
+	integrity="sha384-zB1R0rpPzHqg7Kpt0Aljp8JPLqbXI3bhnPWROx27a9N0Ll6ZP/+DiW/UqRcLbRjq" crossorigin="anonymous">
+	<script defer src="https://cdn.jsdelivr.net/npm/katex@0.11.1/dist/katex.min.js"
+	integrity="sha384-y23I5Q6l+B6vatafAwxRu/0oK/79VlbSz7Q9aiSZUvyWYIYsd+qj+o24G5ZU2zJz" crossorigin="anonymous"></script>
+	<script defer src="https://cdn.jsdelivr.net/npm/katex@0.11.1/dist/contrib/auto-render.min.js"
+	integrity="sha384-kWPLUVMOks5AQFrykwIup5lo0m3iMkkHrD0uJ4H5cjeGihAutqP0yW0J6dpFiVkI" crossorigin="anonymous"
+	onload="renderMathInElement(document.body);"></script>
+
+</head>
+
+<body>
+  
+  <nav class="nav">
+    <div class="nav-container">
+      <a href="https://lbkolev.com">
+        <h2 class="nav-title">Lachezar Kolev</h2>
+      </a>
+      <ul>
+        
+          
+            <li><a href="https://lbkolev.com/blog">Blog</a></li>
+          
+            <li><a href="https://lbkolev.com/tags">Tags</a></li>
+          
+        
+      </ul>
+    </div>
+  </nav>
+  
+
+  <main>
+    
+<div class="post">
+    <h1 class="post-title">Aggregating cross-chain DEX data</h1>
+    <div class="post-info">
+        <span>&nbsp;</span
+        ><time datetime="2024-08-16"
+            >August 16, 2024</time
+        >
+
+        
+        <span
+            >&nbsp;(Updated: August 20, 2024)</span
+        >
+        
+    </div>
+    <div class="post-tags">
+         
+        <a class="tag" href="/tags/cs-rust/"
+            >cs&#x2F;rust</a
+        >
+         
+    </div>
+
+    <p>Ethereum has adopted the <a rel="external" href="https://ethereum-magicians.org/t/a-rollup-centric-ethereum-roadmap/4698">rollup-centric</a> roadmap, positioning itself as the global settlement layer for <a rel="external" href="https://l2beat.com/scaling/summary">potential layer-2s</a> more so than being direct target for "traditional" layer-1 applications. The move allows layer-2s to acquire the economic security of Ethereum as a base layer, the layer-2s on the other hand provide Ethereum with fees for all the block (and blob!) space required to commit each proof. Having such a clear separation of responsibilities provides the means needed to scale the current biggest bottleneck: transaction throughput. One of the downsides of the approach is the increased scatteredness of liquidity and the sheer amount of liquidity pools getting deployed.</p>
+<p>One of the problems we're trying to solve at <a rel="external" href="https://polia.io">Polia</a> is how to most efficiently provide direct exposure to real-time data from all relevant (liquidity unpoor) decentralised exchanges, without accruing too much unnecessary noise and pressure for the clients that'll be consuming the data. Doing so would allow anyone the ability to acquire and keep up-to-date a "world-view" of the current state of all decentralised liquidity pools across multiple networks.</p>
+<p>The system used to provide the service consists of two core components, both developed in <a rel="external" href="https://www.rust-lang.org/">Rust</a>:</p>
+<ul>
+<li><strong>node ETL</strong> - pipeline aggregating filtered live data into an append-only stream</li>
+<li><strong>websocket gateway</strong> - WS server synthesising and exposing the data for client consumption</li>
+</ul>
+<pre class="mermaid">
+  graph LR
+A[Networks nodes - Ethereum,Zksync,Arbitrum etc.] --&gt;|Raw Data| B(Node ETL instances)
+B --&gt;|Filtered Data| C[FIFO Stream]
+C --&gt;|Aggregated Data| D(Websocket Gateway)
+D --&gt;|Synthesised Data| E[Clients]
+
+    subgraph &quot;ETL Pipeline&quot;
+    B
+    C
+    end
+
+    subgraph &quot;Data Exposure&quot;
+    D
+    end
+
+    classDef component fill:#f9f,stroke:#333,stroke-width:2px;
+    class B,D component;
+</pre>
+  <div style="text-align: center; font-style: italic; margin-top: 10px;">system overview</div>
+<h1 id="node-etl">Node ETL</h1>
+<p>The Node ETL provides the means to listen, aggregate and transform the raw events notifications received from each <a rel="external" href="https://docs.polia.io/#networks-endpoints">supported network</a>. Each EVM compatible layer-2 offers the same means to acquire live data as the underlying layer-1 - <a rel="external" href="https://geth.ethereum.org/docs/interacting-with-geth/rpc/pubsub">pubsub JSON-RPC notifications</a>.
+As DEFI is mostly still dominated by uniswap-v2 and uniswap-v3, and the hundreds of clones that have been deployed in their honor, the events we're most interested in to get an idea of the prices of roughly ~80% of all deployed liquidity pools are respectively:</p>
+<ul>
+<li>uniswap-v2 - <code>event Sync(uint112 reserve0, uint112 reserve1)</code></li>
+<li>uniswap-v3 - <code>event Swap(address indexed sender, address indexed recipient, int256 amount0, int256 amount1, uint160 sqrtPriceX96, uint128 liquidity, int24 tick)</code></li>
+</ul>
+<p>Each running instance of Node ETL has a <code>Manager</code> that keeps a list of collectors for each supported network. The Manager is actively tracking the healthiness and liveness of each collector. With the increase of the number of networks, you'd want to also increase the running instances of <code>Node ETL</code> - each supporting different networks, for example, one <code>Node ETL</code> instance might handle <code>Ethereum</code> and <code>Arbitrum</code>, while another manages <code>Zksync</code>, <code>Base</code>, and <code>Optimism</code>. This division allows for optimal resource allocation and prevents any single instance from getting throttled.</p>
+<pre class="giallo" style="color: #24292E; background-color: #FFFFFF;"><code data-lang="rust"><span class="giallo-l"><span>#[derive(</span><span style="color: #6F42C1;">Debug</span><span>,</span><span style="color: #6F42C1;"> Clone</span><span>)]</span></span>
+<span class="giallo-l"><span style="color: #D73A49;">pub struct</span><span style="color: #6F42C1;"> Manager</span><span>&lt;</span><span style="color: #6F42C1;">N</span><span>&gt;</span></span>
+<span class="giallo-l"><span style="color: #D73A49;">where</span></span>
+<span class="giallo-l"><span style="color: #6F42C1;">    N</span><span style="color: #D73A49;">:</span><span style="color: #6F42C1;"> NetworkT</span><span>,</span></span>
+<span class="giallo-l"><span>{</span></span>
+<span class="giallo-l"><span style="color: #D73A49;">    pub</span><span> manager_config</span><span style="color: #D73A49;">:</span><span style="color: #6F42C1;"> ManagerConfig</span><span>,</span></span>
+<span class="giallo-l"><span style="color: #D73A49;">    pub</span><span> collectors</span><span style="color: #D73A49;">:</span><span style="color: #6F42C1;"> Vec</span><span>&lt;</span><span style="color: #6F42C1;">Collector</span><span>&lt;</span><span style="color: #6F42C1;">N</span><span>&gt;&gt;,</span></span>
+<span class="giallo-l"><span>    queue_rx</span><span style="color: #D73A49;">:</span><span style="color: #6F42C1;"> mpsc</span><span style="color: #D73A49;">::</span><span style="color: #6F42C1;">Sender</span><span>&lt;</span><span style="color: #6F42C1;">Resource</span><span>&lt;</span><span style="color: #6F42C1;">N</span><span style="color: #D73A49;">::</span><span style="color: #6F42C1;">Block</span><span>,</span><span style="color: #6F42C1;"> N</span><span style="color: #D73A49;">::</span><span style="color: #6F42C1;">Log</span><span>&gt;&gt;,</span></span>
+<span class="giallo-l"><span>}</span></span></code></pre>
+<p>Each collector consists of a node instance, database pool and a queue that'll propagate the events of interest to a dedicated channel that'll process them further. As the websocket connections are fundamentally unstable the node client has to be self-healing and reconnect whenever a connection gets broken up or closed.</p>
+<pre class="giallo" style="color: #24292E; background-color: #FFFFFF;"><code data-lang="rust"><span class="giallo-l"><span>#[derive(</span><span style="color: #6F42C1;">Debug</span><span>,</span><span style="color: #6F42C1;"> Clone</span><span>)]</span></span>
+<span class="giallo-l"><span style="color: #D73A49;">pub struct</span><span style="color: #6F42C1;"> Collector</span><span>&lt;</span><span style="color: #6F42C1;">N</span><span>&gt;</span></span>
+<span class="giallo-l"><span style="color: #D73A49;">where</span></span>
+<span class="giallo-l"><span style="color: #6F42C1;">    N</span><span style="color: #D73A49;">:</span><span style="color: #6F42C1;"> NetworkT</span><span>,</span></span>
+<span class="giallo-l"><span>{</span></span>
+<span class="giallo-l"><span>    config</span><span style="color: #D73A49;">:</span><span style="color: #6F42C1;"> CollectorConfig</span><span>,</span></span>
+<span class="giallo-l"><span>    node</span><span style="color: #D73A49;">:</span><span style="color: #6F42C1;"> N</span><span>,</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span>    #[cfg(feature </span><span style="color: #D73A49;">=</span><span style="color: #032F62;"> &quot;postgres&quot;</span><span>)]</span></span>
+<span class="giallo-l"><span>    pool</span><span style="color: #D73A49;">:</span><span style="color: #6F42C1;"> PgPool</span><span>,</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span>    #[cfg(feature </span><span style="color: #D73A49;">=</span><span style="color: #032F62;"> &quot;redis-stream&quot;</span><span>)]</span></span>
+<span class="giallo-l"><span>    queue_rx</span><span style="color: #D73A49;">:</span><span style="color: #6F42C1;"> mpsc</span><span style="color: #D73A49;">::</span><span style="color: #6F42C1;">Sender</span><span>&lt;</span><span style="color: #6F42C1;">Resource</span><span>&lt;</span><span style="color: #6F42C1;">N</span><span style="color: #D73A49;">::</span><span style="color: #6F42C1;">Block</span><span>,</span><span style="color: #6F42C1;"> N</span><span style="color: #D73A49;">::</span><span style="color: #6F42C1;">Log</span><span>&gt;&gt;,</span></span>
+<span class="giallo-l"><span>}</span></span></code></pre>
+<p>Each node client subscribes for the desired events, by applying criteria (also known as <code>Filter</code> in the <a rel="external" href="https://ethereum.org/en/developers/docs/apis/json-rpc/#eth_newfilter">official docs</a>), transforms the result into internally meaningful representation, inserts it as is into the database and sends it to a dedicated channel for further processing.</p>
+<pre class="giallo" style="color: #24292E; background-color: #FFFFFF;"><code data-lang="rust"><span class="giallo-l"><span style="color: #D73A49;">async fn</span><span style="color: #6F42C1;"> stream_logs</span><span>(</span></span>
+<span class="giallo-l"><span style="color: #D73A49;">        &amp;</span><span style="color: #005CC5;">self</span><span>,</span></span>
+<span class="giallo-l"><span>        stop_signal</span><span style="color: #D73A49;">:</span><span style="color: #6F42C1;"> watch</span><span style="color: #D73A49;">::</span><span style="color: #6F42C1;">Receiver</span><span>&lt;</span><span style="color: #6F42C1;">bool</span><span>&gt;,</span></span>
+<span class="giallo-l"><span>        criteria</span><span style="color: #D73A49;">:</span><span style="color: #6F42C1;"> Option</span><span>&lt;</span><span style="color: #D73A49;">&amp;</span><span style="color: #6F42C1;">Criteria</span><span>&gt;,</span></span>
+<span class="giallo-l"><span>    )</span><span style="color: #D73A49;"> -&gt; crate::</span><span style="color: #6F42C1;">Result</span><span>&lt;()&gt; {</span></span>
+<span class="giallo-l"><span style="color: #D73A49;">        let mut</span><span> stream</span><span style="color: #D73A49;"> =</span><span style="color: #005CC5;"> self</span><span style="color: #D73A49;">.</span><span>node</span><span style="color: #D73A49;">.</span><span style="color: #6F42C1;">sub_logs</span><span>(criteria)</span><span style="color: #D73A49;">.await?</span><span>;</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span style="color: #D73A49;">        while let</span><span style="color: #6F42C1;"> Some</span><span>(log)</span><span style="color: #D73A49;"> =</span><span> stream</span><span style="color: #D73A49;">.</span><span style="color: #6F42C1;">next</span><span>()</span><span style="color: #D73A49;">.await</span><span> {</span></span>
+<span class="giallo-l"><span style="color: #D73A49;">            if</span><span> stop_signal</span><span style="color: #D73A49;">.</span><span style="color: #6F42C1;">has_changed</span><span>()</span><span style="color: #D73A49;">?</span><span> {</span></span>
+<span class="giallo-l"><span style="color: #D73A49;">                break</span><span>;</span></span>
+<span class="giallo-l"><span>            }</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span style="color: #D73A49;">            let</span><span> log</span><span style="color: #D73A49;"> = match</span><span> log {</span></span>
+<span class="giallo-l"><span style="color: #6F42C1;">                Ok</span><span>(log)</span><span style="color: #D73A49;"> =&gt;</span><span style="color: #6F42C1;"> serde_json</span><span style="color: #D73A49;">::</span><span style="color: #6F42C1;">from_str</span><span style="color: #D73A49;">::&lt;&lt;</span><span style="color: #6F42C1;">N</span><span style="color: #D73A49;"> as</span><span style="color: #6F42C1;"> NetworkT</span><span>&gt;</span><span style="color: #D73A49;">::</span><span style="color: #6F42C1;">Log</span><span>&gt;(log</span><span style="color: #D73A49;">.</span><span style="color: #6F42C1;">get</span><span>())</span><span style="color: #D73A49;">?</span><span>,</span></span>
+<span class="giallo-l"><span style="color: #6F42C1;">                Err</span><span>(err)</span><span style="color: #D73A49;"> =&gt;</span><span> {</span></span>
+<span class="giallo-l"><span style="color: #6F42C1;">                    error!</span><span>(</span></span>
+<span class="giallo-l"><span>                        kind</span><span style="color: #D73A49;"> =</span><span style="color: #032F62;"> &quot;log_error_count&quot;</span><span>,</span></span>
+<span class="giallo-l"><span>                        network</span><span style="color: #D73A49;"> = &amp;</span><span style="color: #005CC5;">self</span><span style="color: #D73A49;">.</span><span>config</span><span style="color: #D73A49;">.</span><span>network</span><span style="color: #D73A49;">.</span><span style="color: #6F42C1;">to_string</span><span>(),</span></span>
+<span class="giallo-l"><span>                    );</span></span>
+<span class="giallo-l"><span style="color: #D73A49;">                    continue</span><span>;</span></span>
+<span class="giallo-l"><span>                }</span></span>
+<span class="giallo-l"><span>            };</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span>            #[cfg(feature </span><span style="color: #D73A49;">=</span><span style="color: #032F62;"> &quot;postgres&quot;</span><span>)]</span></span>
+<span class="giallo-l"><span>            {</span></span>
+<span class="giallo-l"><span>                event</span></span>
+<span class="giallo-l"><span style="color: #D73A49;">                    .</span><span style="color: #6F42C1;">insert</span><span>(</span></span>
+<span class="giallo-l"><span style="color: #D73A49;">                        &amp;</span><span style="color: #005CC5;">self</span><span style="color: #D73A49;">.</span><span>pool,</span></span>
+<span class="giallo-l"><span style="color: #D73A49;">                        &amp;</span><span style="color: #005CC5;">self</span><span style="color: #D73A49;">.</span><span>config</span><span style="color: #D73A49;">.</span><span>network</span><span style="color: #D73A49;">.</span><span style="color: #6F42C1;">to_string</span><span>(),</span></span>
+<span class="giallo-l"><span style="color: #D73A49;">                        &amp;</span><span>log</span><span style="color: #D73A49;">.</span><span style="color: #6F42C1;">core</span><span>()</span><span style="color: #D73A49;">.</span><span>tx_hash,</span></span>
+<span class="giallo-l"><span>                    )</span></span>
+<span class="giallo-l"><span style="color: #D73A49;">                    .await?</span><span>;</span></span>
+<span class="giallo-l"><span>            }</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span>            #[cfg(feature </span><span style="color: #D73A49;">=</span><span style="color: #032F62;"> &quot;redis-stream&quot;</span><span>)]</span></span>
+<span class="giallo-l"><span>            {</span></span>
+<span class="giallo-l"><span style="color: #D73A49;">                let</span><span> event</span><span style="color: #D73A49;"> =</span><span style="color: #6F42C1;"> match_events</span><span>(log);</span></span>
+<span class="giallo-l"><span style="color: #D73A49;">                match</span><span style="color: #005CC5;"> self</span><span style="color: #D73A49;">.</span><span>queue_rx</span><span style="color: #D73A49;">.</span><span style="color: #6F42C1;">send</span><span>(</span><span style="color: #6F42C1;">Resource</span><span style="color: #D73A49;">::</span><span style="color: #6F42C1;">Log</span><span>(event))</span><span style="color: #D73A49;">.await</span><span> {</span></span>
+<span class="giallo-l"><span style="color: #6F42C1;">                    Ok</span><span>(_)</span><span style="color: #D73A49;"> =&gt;</span><span> {}</span></span>
+<span class="giallo-l"><span style="color: #6F42C1;">                    Err</span><span>(err)</span><span style="color: #D73A49;"> =&gt;</span><span> {</span></span>
+<span class="giallo-l"><span style="color: #6F42C1;">                        warn!</span><span>(kind</span><span style="color: #D73A49;">=</span><span style="color: #032F62;">&quot;propagate_error&quot;</span><span>, network</span><span style="color: #D73A49;"> = &amp;</span><span style="color: #005CC5;">self</span><span style="color: #D73A49;">.</span><span>config</span><span style="color: #D73A49;">.</span><span>network</span><span style="color: #D73A49;">.</span><span style="color: #6F42C1;">to_string</span><span>(), err</span><span style="color: #D73A49;"> = ?</span><span>err);</span></span>
+<span class="giallo-l"><span>                    }</span></span>
+<span class="giallo-l"><span>                }</span></span>
+<span class="giallo-l"><span>            }</span></span>
+<span class="giallo-l"><span>        }</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span style="color: #6F42C1;">        Ok</span><span>(())</span></span>
+<span class="giallo-l"><span>    }</span></span></code></pre>
+<p>Large prerequisite is acquiring a list of all the deployed pools as that's necessary to apply correct filter criteria (and prevent yourself from drowning in logs (especially in some layer-2s)).</p>
+<p>The whole process can be illustrated with the diagram below.
+<pre class="mermaid">
+  graph TD
+A[Node ETL] --&gt; B[Manager]
+B --&gt; C1[Collector 1]
+B --&gt; C2[Collector 2]
+B --&gt; C3[Collector N]
+
+    C1 --&gt; D1[Node Instance]
+    C1 --&gt; D2[Database Pool]
+    C1 --&gt; D3[Redis Stream]
+
+    I[Raw Events] &lt;--&gt;|Listen| D1
+    D1 --&gt;|Aggregate &amp; Transform| J[Processed Events]
+    J --&gt;|Insert| D2[Database Pool]
+    J --&gt;|Send| D3[Redis Stream]
+
+    subgraph &quot;Collector&quot;
+    D1
+    D2
+    D3
+    J
+    end
+
+    subgraph &quot;Events&quot;
+    I
+    end
+
+    classDef manager fill:#f9f,stroke:#333,stroke-width:2px;
+    classDef collector fill:#bbf,stroke:#333,stroke-width:2px;
+    classDef process fill:#bfb,stroke:#333,stroke-width:2px;
+    class B manager;
+    class C1,C2,C3 collector;
+    class I,J process;
+</pre>
+  </p>
+<div style="text-align: center; font-style: italic; margin-top: 10px;">Node ETL overview</div>
+<h1 id="websocket-gateway">Websocket Gateway</h1>
+<p>The websocket gateway complements the Node ETL by handling client interactions, including authentication, topic subscriptions, and real-time event delivery. The server is utilising the <a rel="external" href="https://en.wikipedia.org/wiki/Actor_model">actor model</a> to segregate the responsibilities between the different logical components.</p>
+<p>The lifecycle of a client establishing a connection is roughly summarised by the below diagram. Please note that the diagram represents happy-path scenarios only.
+<pre class="mermaid">
+  sequenceDiagram
+actor C as Client[Entity]
+participant SES as ClientSession[Actor]
+participant DB as Database[Actor]
+participant SRV as Server[Actor]
+participant DEFI as DEFI[Actor]
+participant RED as Redis
+
+    C -&gt;&gt; SES: Begin Handshake
+    C -&gt;&gt; SES: Send an API Key
+    SES -&gt;&gt; DB: Verify the API Key
+    SES -&gt;&gt; SRV: Add the new client to the list of clients with established sessions
+    SRV -&gt;&gt; DB: Acquire client&#x27;s relevant information (used credits&#x2F;plan details etc.)
+    SRV -&gt;&gt; C: Establish connection
+    C -&gt;&gt; SES: Subscribe to specific topics
+    SES -&gt;&gt; SRV: Verify the correctness of the message
+
+    loop Continuous Communication
+        DEFI -&gt;&gt; RED: Poll for new events
+        RED --&gt;&gt; DEFI: Return new events
+        DEFI --&gt;&gt; DB: Optionally log the events before propagating
+        DEFI --&gt;&gt; SRV: Send synthesised events for further client distribution
+    end
+
+    SRV -&gt;&gt; SES: Send a msg to all client sessions each time a relevant event happens
+    SRV -&gt;&gt; SRV: Modify the user&#x27;s used credits
+    SES -&gt;&gt; C: ClientSession actor sends the messages to all end client entities
+
+    rect rgb(240, 240, 240)
+        Note over C,SRV: Session End
+        C -&gt;&gt; SES: Close connection
+        SES -&gt;&gt; SRV: Notify of client disconnect
+        SES -&gt;&gt; SES: Cleanup client-specific resources
+        SRV -&gt;&gt; DB: Update client&#x27;s session data (total time, credits used, etc.)
+        SRV -&gt;&gt; SRV: Remove client from active subscribers list
+    end
+</pre>
+  </p>
+<p>The authentication happens through the <code>Authorization</code> header - as recommended by the <a rel="external" href="https://www.rfc-editor.org/rfc/rfc6455.html">Websocket RFC</a> (more on how to authenticate can be found in the <a rel="external" href="https://docs.polia.io/#authentication">official docs</a>).</p>
+<p>All messages are parsed to determine the networks and dexes of interest of the one connecting. Clients can subscribe to as many networks and/or dexes as they're interested in - so long as they can handle the amount of data.</p>
+<pre class="giallo" style="color: #24292E; background-color: #FFFFFF;"><code data-lang="rust"><span class="giallo-l"><span style="color: #D73A49;">impl</span><span style="color: #6F42C1;"> StreamHandler</span><span>&lt;</span><span style="color: #6F42C1;">Result</span><span>&lt;ws</span><span style="color: #D73A49;">::</span><span style="color: #6F42C1;">Message</span><span>, ws</span><span style="color: #D73A49;">::</span><span style="color: #6F42C1;">ProtocolError</span><span>&gt;&gt;</span><span style="color: #D73A49;"> for</span><span style="color: #6F42C1;"> ClientSession</span><span> {</span></span>
+<span class="giallo-l"><span style="color: #D73A49;">    fn</span><span style="color: #6F42C1;"> handle</span><span>(</span><span style="color: #D73A49;">&amp;mut</span><span style="color: #005CC5;"> self</span><span>, msg</span><span style="color: #D73A49;">:</span><span style="color: #6F42C1;"> Result</span><span>&lt;ws</span><span style="color: #D73A49;">::</span><span style="color: #6F42C1;">Message</span><span>, ws</span><span style="color: #D73A49;">::</span><span style="color: #6F42C1;">ProtocolError</span><span>&gt;, ctx</span><span style="color: #D73A49;">: &amp;mut</span><span style="color: #005CC5;"> Self</span><span style="color: #D73A49;">::</span><span style="color: #6F42C1;">Context</span><span>) {</span></span>
+<span class="giallo-l"><span style="color: #D73A49;">        match</span><span> msg {</span></span>
+<span class="giallo-l"><span style="color: #6F42C1;">            Ok</span><span>(</span><span style="color: #6F42C1;">ws</span><span style="color: #D73A49;">::</span><span style="color: #6F42C1;">Message</span><span style="color: #D73A49;">::</span><span style="color: #6F42C1;">Ping</span><span>(msg))</span><span style="color: #D73A49;"> =&gt;</span><span> {</span></span>
+<span class="giallo-l"><span style="color: #005CC5;">                self</span><span style="color: #D73A49;">.</span><span>hb </span><span style="color: #D73A49;">=</span><span style="color: #6F42C1;"> Instant</span><span style="color: #D73A49;">::</span><span style="color: #6F42C1;">now</span><span>();</span></span>
+<span class="giallo-l"><span>                ctx</span><span style="color: #D73A49;">.</span><span style="color: #6F42C1;">pong</span><span>(</span><span style="color: #D73A49;">&amp;</span><span>msg);</span></span>
+<span class="giallo-l"><span>            }</span></span>
+<span class="giallo-l"><span style="color: #6F42C1;">            Ok</span><span>(</span><span style="color: #6F42C1;">ws</span><span style="color: #D73A49;">::</span><span style="color: #6F42C1;">Message</span><span style="color: #D73A49;">::</span><span style="color: #6F42C1;">Pong</span><span>(_))</span><span style="color: #D73A49;"> =&gt;</span><span> {</span></span>
+<span class="giallo-l"><span style="color: #005CC5;">                self</span><span style="color: #D73A49;">.</span><span>hb </span><span style="color: #D73A49;">=</span><span style="color: #6F42C1;"> Instant</span><span style="color: #D73A49;">::</span><span style="color: #6F42C1;">now</span><span>();</span></span>
+<span class="giallo-l"><span>            }</span></span>
+<span class="giallo-l"><span style="color: #6F42C1;">            Ok</span><span>(</span><span style="color: #6F42C1;">ws</span><span style="color: #D73A49;">::</span><span style="color: #6F42C1;">Message</span><span style="color: #D73A49;">::</span><span style="color: #6F42C1;">Text</span><span>(txt))</span><span style="color: #D73A49;"> =&gt;</span><span> {</span></span>
+<span class="giallo-l"><span style="color: #D73A49;">                match</span><span style="color: #6F42C1;"> serde_json</span><span style="color: #D73A49;">::</span><span style="color: #6F42C1;">from_str</span><span style="color: #D73A49;">::</span><span>&lt;</span><span style="color: #6F42C1;">ClientPayload</span><span>&gt;(</span><span style="color: #D73A49;">&amp;</span><span>txt) {</span></span>
+<span class="giallo-l"><span style="color: #6F42C1;">                    Ok</span><span>(payload)</span><span style="color: #D73A49;"> =&gt;</span><span> {</span></span>
+<span class="giallo-l"><span style="color: #D73A49;">                        let</span><span> information</span><span style="color: #D73A49;"> =</span><span style="color: #005CC5;"> self</span><span style="color: #D73A49;">.</span><span>information</span><span style="color: #D73A49;">.</span><span style="color: #6F42C1;">clone</span><span>();</span></span>
+<span class="giallo-l"><span style="color: #D73A49;">                        let</span><span> networks</span><span style="color: #D73A49;"> =</span><span style="color: #6F42C1;"> parse_comma_separated_values</span><span>(payload</span><span style="color: #D73A49;">.</span><span>networks);</span></span>
+<span class="giallo-l"><span style="color: #D73A49;">                        let</span><span> dex</span><span style="color: #D73A49;"> =</span><span style="color: #6F42C1;"> parse_comma_separated_values</span><span>(payload</span><span style="color: #D73A49;">.</span><span>dex);</span></span>
+<span class="giallo-l"></span>
+<span class="giallo-l"><span style="color: #D73A49;">                        match</span><span> payload</span><span style="color: #D73A49;">.</span><span>method {</span></span>
+<span class="giallo-l"><span style="color: #6F42C1;">                            Method</span><span style="color: #D73A49;">::</span><span style="color: #6F42C1;">Subscribe</span><span style="color: #D73A49;"> =&gt;</span><span> {</span></span>
+<span class="giallo-l"><span style="color: #005CC5;">                                self</span><span style="color: #D73A49;">.</span><span>server_addr</span><span style="color: #D73A49;">.</span><span style="color: #6F42C1;">do_send</span><span>(</span><span style="color: #6F42C1;">Subscribe</span><span> {</span></span>
+<span class="giallo-l"><span>                                    client_id</span><span style="color: #D73A49;">:</span><span style="color: #005CC5;"> self</span><span style="color: #D73A49;">.</span><span>id,</span></span>
+<span class="giallo-l"><span>                                    information</span><span style="color: #D73A49;">:</span><span> information</span><span style="color: #D73A49;">.</span><span style="color: #6F42C1;">clone</span><span>(),</span></span>
+<span class="giallo-l"><span>                                    networks</span><span style="color: #D73A49;">:</span><span> networks</span><span style="color: #D73A49;">.</span><span style="color: #6F42C1;">clone</span><span>(),</span></span>
+<span class="giallo-l"><span>                                    kind</span><span style="color: #D73A49;">:</span><span> payload</span><span style="color: #D73A49;">.</span><span>kind</span><span style="color: #D73A49;">.</span><span style="color: #6F42C1;">unwrap_or_default</span><span>(),</span></span>
+<span class="giallo-l"><span>                                    dex</span><span style="color: #D73A49;">:</span><span> dex</span><span style="color: #D73A49;">.</span><span style="color: #6F42C1;">clone</span><span>(),</span></span>
+<span class="giallo-l"><span>                                });</span></span>
+<span class="giallo-l"><span>                            }</span></span>
+<span class="giallo-l"><span style="color: #6F42C1;">                            Method</span><span style="color: #D73A49;">::</span><span style="color: #6F42C1;">Unsubscribe</span><span style="color: #D73A49;"> =&gt;</span><span> {</span></span>
+<span class="giallo-l"><span style="color: #005CC5;">                                self</span><span style="color: #D73A49;">.</span><span>server_addr</span><span style="color: #D73A49;">.</span><span style="color: #6F42C1;">do_send</span><span>(</span><span style="color: #6F42C1;">Unsubscribe</span><span> {</span></span>
+<span class="giallo-l"><span>                                    client_id</span><span style="color: #D73A49;">:</span><span style="color: #005CC5;"> self</span><span style="color: #D73A49;">.</span><span>id,</span></span>
+<span class="giallo-l"><span>                                    information</span><span style="color: #D73A49;">:</span><span> information</span><span style="color: #D73A49;">.</span><span style="color: #6F42C1;">clone</span><span>(),</span></span>
+<span class="giallo-l"><span>                                    networks</span><span style="color: #D73A49;">:</span><span> networks</span><span style="color: #D73A49;">.</span><span style="color: #6F42C1;">clone</span><span>(),</span></span>
+<span class="giallo-l"><span>                                    kind</span><span style="color: #D73A49;">:</span><span> payload</span><span style="color: #D73A49;">.</span><span>kind</span><span style="color: #D73A49;">.</span><span style="color: #6F42C1;">unwrap_or_default</span><span>(),</span></span>
+<span class="giallo-l"><span>                                    dex</span><span style="color: #D73A49;">:</span><span> dex</span><span style="color: #D73A49;">.</span><span style="color: #6F42C1;">clone</span><span>(),</span></span>
+<span class="giallo-l"><span>                                });</span></span>
+<span class="giallo-l"><span>                            }</span></span>
+<span class="giallo-l"><span>                        }</span></span>
+<span class="giallo-l"><span>                    }</span></span>
+<span class="giallo-l"><span style="color: #6F42C1;">                    Err</span><span>(_)</span><span style="color: #D73A49;"> =&gt;</span><span> {</span></span>
+<span class="giallo-l"><span>                        ctx</span><span style="color: #D73A49;">.</span><span style="color: #6F42C1;">text</span><span>(</span></span>
+<span class="giallo-l"><span style="color: #6F42C1;">                            json!</span><span>({</span></span>
+<span class="giallo-l"><span style="color: #032F62;">                                &quot;error&quot;</span><span style="color: #D73A49;">:</span><span style="color: #032F62;"> &quot;Invalid Format. Please visit https://docs.polia.io for more information on how to format messages. Support is available at support@polia.io.&quot;</span></span>
+<span class="giallo-l"><span>                            })</span><span style="color: #D73A49;">.</span><span style="color: #6F42C1;">to_string</span><span>()</span></span>
+<span class="giallo-l"><span>                        );</span></span>
+<span class="giallo-l"><span>                    }</span></span>
+<span class="giallo-l"><span>                }</span></span>
+<span class="giallo-l"><span>            }</span></span>
+<span class="giallo-l"><span style="color: #6F42C1;">            Ok</span><span>(</span><span style="color: #6F42C1;">ws</span><span style="color: #D73A49;">::</span><span style="color: #6F42C1;">Message</span><span style="color: #D73A49;">::</span><span style="color: #6F42C1;">Binary</span><span>(_))</span><span style="color: #D73A49;"> =&gt;</span><span> {}</span></span>
+<span class="giallo-l"><span>            _</span><span style="color: #D73A49;"> =&gt;</span><span> (),</span></span>
+<span class="giallo-l"><span>        }</span></span>
+<span class="giallo-l"><span>    }</span></span>
+<span class="giallo-l"><span>}</span></span></code></pre>
+<p>As previously outlined, the ETL-processed logs are propagated to an append-only stream in Redis. This allows the <code>DEFI</code> actor to maintain an event loop with connection to Redis, thereby accessing the newest events from the latest block. Running the <code>node ETL</code> as a standalone process, rather than directly integrating its responsibilities into the <code>websocket-gateway</code>, offers several advantages:</p>
+<ol>
+<li>It enables easy scaling of the number of websocket instances running simultaneously (redis's append-only logs can be consumed by multiple entities).</li>
+<li>It prevents an exponential increase in node event consumption. This is particularly crucial when using an RPC provider like <a rel="external" href="https://infura.io">Infura</a>, especially when integrating multiple networks. While running dedicated nodes can alleviate this to some extent, relying solely on external RPC providers for multi-network integration can lead to significant consumption-related challenges.</li>
+<li>The setup allows for the utilisation of real-time events by processes that offer additional functionality and flexibility.</li>
+</ol>
+
+</div>
+
+
+
+<div class="pagination">
+     
+</div>
+
+  </main>
+
+  
+  <footer>
+    <div class="footer-content">
+      <div class="footer-left">
+        Subscribe via <a href="/rss.xml">RSS</a><br>
+        Subscribe via <a href="https://substack.com/@lbkolev">Substack</a><br>
+        <small>All posts are mirrored to Substack</small>
+      </div>
+      <div class="footer-center">&copy; <time datetime="2026-04-13T17:41:34.082117571+00:00">2023-∞</time></div>
+      <div class="footer-right">
+        <a href="https://github.com/lbkolev" target="_blank" rel="noopener noreferrer">
+          <i class="fab fa-github"></i> lbkolev
+        </a>
+        <a href="https://x.com/lbkolev" target="_blank" rel="noopener noreferrer">
+          <i class="fab fa-x-twitter"></i> lbkolev
+        </a>
+        <a href="mailto:lachezarkolevgg@gmail.com">lachezarkolevgg@gmail.com</a>
+      </div>
+    </div>
+  </footer>
+  
+
+</body>
+
+</html>
