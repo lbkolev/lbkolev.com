@@ -24,12 +24,12 @@ katex = true
 mermaid = true
 
 [[extra.menu]]
-name = "Tags"
-url = "tags"
+name = "Blog"
+url = "blog"
 
 [[extra.menu]]
-name = "About"
-url = "about"
+name = "Tags"
+url = "tags"
 
 [extra.footer]
 start_year = "2023"
